@@ -8,17 +8,15 @@
 
 enum e_args
 {
-    //
-    ARG_A,
-    ARG_E,
-    //
-    ARG_b,
-    ARG_c,
-    ARG_i,
-    ARG_n,
-    ARG_v,
-    ARG_x,
-    ARG_MAX
+    AFTER_CONTEXT,
+    EXTENDED_REGEX,
+    BYTE_OFFSET,
+    COUNT,
+    IGNORE_CASE,
+    LINE_NUMBER,
+    INVERT_MATCH,
+    LINE_REGEXP,
+    OPTION_MAX
 };
 
 enum e_status
@@ -29,10 +27,11 @@ enum e_status
 
 struct s_args
 {
-    FILE *fp;
-    int flags;
-    int  arg_A_num;
-    char arg_E_regx;
+    FILE *fptr;
+    int num_context_lines;
+    char *regex;
+    char *str;
+    bool option[OPTION_MAX];
 };
 
 
