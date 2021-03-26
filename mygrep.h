@@ -15,7 +15,7 @@ enum e_args
     IGNORE_CASE,
     LINE_NUMBER,
     INVERT_MATCH,
-    LINE_REGEXP,
+    EXACT_MATCH,
     OPTION_MAX
 };
 
@@ -30,7 +30,7 @@ struct s_args
     FILE *fptr;
     int num_context_lines;
     char *regex;
-    char *str;
+    char *pattern;
     bool option[OPTION_MAX];
 };
 

@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdbool.h>
@@ -27,7 +26,7 @@ const char *opt_str[OPTION_MAX] =
 	[IGNORE_CASE]    = "-i",
 	[LINE_NUMBER]    = "-n",
 	[INVERT_MATCH]   = "-v",
-	[LINE_REGEXP]    = "-x",
+	[EXACT_MATCH]    = "-x",
 };
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
@@ -62,30 +61,12 @@ int parse_options(int argc, char **argv, struct s_args *args)
 			}
 		}
 	}
-
 }
 
-int parse_args(int argc, char **argv, struct s_args *args)
+void strtolow(char *str)
 {
-	
-
-	args->fptr = fopen(argv[1], "r");
-	if (!args->fptr) {
-		if (errno != ENOENT) {
-			return errno;
-		}
-		args->fptr = stdin;
-	}
-
-	args->str = argv[argc - 1];
-
-	return ESUCCESS;
-}
-
-void strtolow(char *p)
-{
-	while (*p) {
-		*p = tolower(*p++);
+	for (char *c = str; *c; c++) {
+		*c = tolower(*c);
 	}
 }
 
@@ -93,10 +74,6 @@ void print_output(char *str, struct s_args *args, bool prev_line_printed, int li
 {
 	bool *option = args->option;
 	char delim = match ? ':' : '-';
-
-	if (option[COUNT]) {
-		return;
-	}
 
 	if (option[AFTER_CONTEXT] && !first_match && !prev_line_printed) {
 		printf("--\n");
@@ -110,20 +87,46 @@ void print_output(char *str, struct s_args *args, bool prev_line_printed, int li
 		printf("%d%c", byte_offset, delim);
 	}
 
-	printf("%s", str);
-
-	if (str[strlen(str) - 1] != '\n') { // FIXME: this is ugly
-		printf("\n");
-	}
+	printf("%s\n", str);
 }
 
-int is_match_line(char *line, struct s_args *args)
+int is_pattern_at_place(char *place, char *pattern, bool ignore_case)
 {
+	if (!*pattern) {
+		return true;
+	}
+
+	if (!*place) {
+		return false;
+	}
+
+	if ((*place == *pattern) || (ignore_case && (tolower(*place) == tolower(*pattern)))) {
+		return is_pattern_at_place(place + 1, pattern + 1, ignore_case);
+	}
+
+	return false;
+}
+
+
+int is_pattern_in_line(char *line, struct s_args *args)
+{
+	bool *option = args->option;
+	char *pattern = args->pattern;
 	bool match = false;
 
-	match = strstr(line, args->str) != NULL;
+	while (!match && *line) {
 
-	if (args->option[INVERT_MATCH]) {
+		match = is_pattern_at_place(line, pattern, option[IGNORE_CASE]);
+
+		if (option[EXACT_MATCH]) {
+			match &= (strlen(line) == strlen(pattern));
+			break;
+		}
+
+		line++;
+	}
+
+	if (option[INVERT_MATCH]) {
 		match = !match;
 	}
 
@@ -147,39 +150,41 @@ int mygrep(struct s_args *args)
 {
 	int status = ESUCCESS;
 	size_t n = 0;
-	char *lineptr = NULL;
+	char *line = NULL;
 	int context = 0;
 	bool match = false;
 	bool prev_line_printed = false;
 	int line_cnt = 0;
 	int match_cnt = 0;
 	int byte_cnt = 0;
+	bool *option = args->option;
 
 	while (1) {
-
-		// FIXME: how do we exit if in stdin mode?
-
-		if (getline(&lineptr, &n, args->fptr) < 0) {
+		if (getline(&line, &n, args->fptr) < 0) {
 			status = errno;
 			break;
+		}
+		if (line[strlen(line) - 1] == '\n') {
+			line[strlen(line) - 1] = 0;
 		}
 		line_cnt++;
 
 		prev_line_printed = match || context;
-		match = is_match_line(lineptr, args);
+		match = is_pattern_in_line(line, args);
 		context = is_context_line(match, context, args);
-		if (match || context) {
-			print_output(lineptr, args, prev_line_printed, line_cnt, !match_cnt, match, byte_cnt);
+
+		if ((match || context) && !option[COUNT]) {
+			print_output(line, args, prev_line_printed, line_cnt, !match_cnt, match, byte_cnt);
 		}
 
-		byte_cnt += strlen(lineptr);
+		byte_cnt += strlen(line) + 1;
 		match_cnt += match;
 
-		free(lineptr);
-		lineptr = NULL;
+		free(line);
+		line = NULL;
 	}
 
-	if (args->option[COUNT]) {
+	if (option[COUNT]) {
 		printf("%d\n", match_cnt);
 	}
 
@@ -191,7 +196,6 @@ FILE *get_input_stream(char *path)
 	FILE *fptr = fopen(path, "r");
 	if (!fptr) {
 		if (errno != ENOENT) {
-			DBG("%d\n", __LINE__);
 			return NULL;
 		}
 		fptr = stdin;
@@ -206,12 +210,13 @@ int grep_init(int argc, char **argv, struct s_args *grep)
 		return EINPUT;
 	}
 
-	if (!(grep->fptr = get_input_stream(argv[1]))) {
+	grep->fptr = get_input_stream(argv[1]);
+	if (!grep->fptr) {
 		return errno;
 	}
 
 	parse_options(argc, argv, grep);
-	grep->str = argv[argc - 1];
+	grep->pattern = argv[argc - 1];
 
 	return ESUCCESS;
 }
