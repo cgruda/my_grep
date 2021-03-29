@@ -31,7 +31,7 @@ struct s_args
     int num_context_lines;
     char *regex;
     char *pattern;
-    bool option[OPTION_MAX];
+    bool options[OPTION_MAX];
 };
 
 
