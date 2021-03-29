@@ -9,7 +9,7 @@
 enum e_args
 {
     AFTER_CONTEXT,
-    EXTENDED_REGEX,
+    REGEX,
     BYTE_OFFSET,
     COUNT,
     IGNORE_CASE,
@@ -29,7 +29,6 @@ struct s_args
 {
     FILE *fptr;
     int num_context_lines;
-    char *regex;
     char *pattern;
     bool options[OPTION_MAX];
 };

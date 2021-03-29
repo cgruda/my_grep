@@ -6,9 +6,8 @@
 #include <errno.h>
 #include "mygrep.h"
 
-// =========== debug ==========
-#define DBG_MODE        0
 #define DBG(...)        printf(__VA_ARGS__)
+#define MIN_ARGC 2
 
 enum error {
 	ESUCCESS,
@@ -16,11 +15,10 @@ enum error {
 	EMAX
 };
 
-
 const char *opt_str[OPTION_MAX] =
 {
 	[AFTER_CONTEXT]  = "-A",
-	[EXTENDED_REGEX] = "-E",
+	[REGEX] = "-E",
 	[BYTE_OFFSET]    = "-b",
 	[COUNT]          = "-c",
 	[IGNORE_CASE]    = "-i",
@@ -29,14 +27,11 @@ const char *opt_str[OPTION_MAX] =
 	[EXACT_MATCH]    = "-x",
 };
 
-#define max(a, b) ((a) > (b) ? (a) : (b))
-
-void usage_print()
+void print_usage()
 {
-	printf("usage: ./mygrep [file] [-A num] [-b] [-c] [-i] [-n] [-v] [-x] [-E regex] <pattern>\n");
+	printf("Usage: ./mygrep [-A num] [-b] [-c] [-i] [-n] [-v] [-x] [-E] PATTERN [FILE]\n");
 }
 
-#define MIN_ARGC 2
 
 void parse_options(int argc, char **argv, struct s_args *args)
 {
@@ -50,14 +45,7 @@ void parse_options(int argc, char **argv, struct s_args *args)
 			continue;
 		}
 
-		if (!strcmp(argv[i], opt_str[EXTENDED_REGEX])) {
-			options[EXTENDED_REGEX] = true;
-			args->regex = argv[i + 1];
-			i++;
-			continue;
-		}
-
-		for (int opt_idx = BYTE_OFFSET; opt_idx < OPTION_MAX; opt_idx++) {
+		for (int opt_idx = REGEX; opt_idx < OPTION_MAX; opt_idx++) {
 			if (!strcmp(argv[i], opt_str[opt_idx])) {
 				options[opt_idx] = true;
 				break;
@@ -93,8 +81,10 @@ void print_output(char *str, struct s_args *args, bool prev_line_printed, int li
 	printf("%s\n", str);
 }
 
-int is_pattern_at_place(char *place, char *pattern, bool ignore_case)
+int is_pattern_at_place(char *place, char *pattern, bool ignore_case, bool is_regex)
 {
+	bool match = false;
+
 	if (!*pattern) {
 		return true;
 	}
@@ -103,25 +93,51 @@ int is_pattern_at_place(char *place, char *pattern, bool ignore_case)
 		return false;
 	}
 
-	if ((*place == *pattern) || (ignore_case && (tolower(*place) == tolower(*pattern)))) {
-		return is_pattern_at_place(place + 1, pattern + 1, ignore_case);
+	if (is_regex) {
+		switch (*pattern) {
+		case '\\':
+			pattern++;
+			break;
+		case '.':
+			match = true;
+			break;
+		case '[':
+			pattern++; // move over [
+			char first = *(pattern++); // keep x
+			char last =  *(++pattern); // skip - and keep y
+			pattern++; // move over y
+			match = ((*place >= first) && (*place <= last)) || ((tolower(*place) >= tolower(first)) && (tolower(*place) <= tolower(last)) && ignore_case);
+			break;
+		case '(':
+			;
+			char *delim = strstr(pattern, "|");
+			char *end = strstr(pattern, ")");
+			match = !strncmp(place, pattern + 1, delim - (pattern + 1)) || !strncmp(place, delim + 1, end - (delim + 1)); // TODO:FIXME: ignore case won't work!!
+			pattern = end;
+			break;
+		}
 	}
 
-	return false;
+	match |= (*place == *pattern) || (ignore_case && (tolower(*place) == tolower(*pattern)));
+
+	if (match) {
+		return is_pattern_at_place(place + 1, pattern + 1, ignore_case, is_regex);
+	} else {
+		return false;
+	}
 }
 
-
-int is_pattern_in_line(char *line, char *pattern, bool *options)
+int is_pattern_in_text(char *text, char *pattern, bool *options)
 {
 	bool match = false;
 
-	while (!match && *line) {
-		match = is_pattern_at_place(line, pattern, options[IGNORE_CASE]);
+	while (!match && *text) {
+		match = is_pattern_at_place(text, pattern, options[IGNORE_CASE], options[REGEX]);
 		if (options[EXACT_MATCH]) {
-			match &= (strlen(line) == strlen(pattern));
+			match &= (strlen(text) == strlen(pattern));
 			break;
 		}
-		line++;
+		text++;
 	}
 
 	if (options[INVERT_MATCH]) {
@@ -153,8 +169,7 @@ char *read_line(FILE *stream)
 		return NULL;
 	}
 
-	// remove newline charachter
-	if (line[strlen(line) - 1] == '\n') {
+	if (line[strlen(line) - 1] == '\n') { // FIXME: can grep search for newline?
 		line[strlen(line) - 1] = 0;
 	}
 
@@ -181,7 +196,7 @@ int mygrep(struct s_args *args)
 
 		prev_line_printed = match || context;
 
-		match = is_pattern_in_line(line, args->pattern, options);
+		match = is_pattern_in_text(line, args->pattern, options);
 		context = is_context_line(match, context, args->num_context_lines);
 		if ((match || context) && !options[COUNT]) {
 			print_output(line, args, prev_line_printed, line_cnt, !match_cnt, match, byte_cnt);
@@ -216,7 +231,7 @@ FILE *get_input_stream(char *path)
 int grep_init(int argc, char **argv, struct s_args *grep)
 {
 	if (argc < MIN_ARGC) {
-		usage_print();
+		print_usage();
 		return EINPUT;
 	}
 

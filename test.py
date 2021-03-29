@@ -19,8 +19,8 @@ def test(path, pattern, options):
 	for opt in options:
 		options_str += " " + opt
 
-	log = YELLOW + "[%2d] " %test_idx + NC + mygrep_command + options_str + pattern_path
-	log = log.ljust(55)
+	log = YELLOW + "[%4d] " %test_idx + NC + mygrep_command + options_str + pattern_path
+	log = log.ljust(75)
 
 	mygrep_command += options_str + pattern_path + " > mygrep_output"
 	grep_command += options_str + pattern_path + " > grep_output"
@@ -56,14 +56,35 @@ def test(path, pattern, options):
 file0 = "file0"
 file1 = "file1"
 
+def permutations_combinations(alist):
+	result = []
+	for i in range(len(alist)):
+		temp_list = list(itertools.combinations(alist, i))
+		for item in temp_list:
+			result.append(item)
+	return result
+
+
 options_arr = ["-A 2", "-b", "-c", "-i", "-n", "-v", "-x"]
-strs = ["dontfind", "chaim", "CHAIM", "Add", "\"is chaim\"", "\"can do some\""]
-opts = list(itertools.permutations(options_arr))
+strs = ["dontfind", "chaim", "CHAIM", "\"is chaim\""]
+opts = permutations_combinations(options_arr)
 
 test(file0, "chaim", [])
 test(file1, "chaim", [])
 test(file1, "\"is chaim\"", [])
 test(file1, "chaim", ["-c"])
+test(file1, "\"m. name\"", ["-E"])
+test(file1, "\"now\{ ad\}ding\"", ["-E"])
+test(file1, "\"\( some\)\"", ["-E"])
+test(file1, "\"\\\\text \"", ["-E"])
+test(file1, "\"for\.\"", ["-E"])
+test(file1, "\"\[\]\"", ["-E"])
+test(file1, "\"escaping \| chars\"", ["-E"])
+test(file1, "\"m[a-z] name\"", ["-E"])
+test(file1, "\"m[A-Z] name\"", ["-E"])
+test(file1, "\"m[A-Z] name\"", ["-E", "-i"])
+test(file1, "\"m[A-Z] name is (chaim|moshe)\"", ["-E", "-i"])
+
 
 for optper in opts:
 	for astr in strs:
