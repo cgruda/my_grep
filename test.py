@@ -21,33 +21,30 @@ def test(path, pattern, options):
 
 	log = YELLOW + "[%4d] " %test_idx + NC + mygrep_command + options_str + pattern_path
 	log = log.ljust(75)
+	print(log, end=' ')
 
 	mygrep_command += options_str + pattern_path + " > mygrep_output"
 	grep_command += options_str + pattern_path + " > grep_output"
 	
 	mygrep_status = os.system(mygrep_command)
 	if (mygrep_status != 0):
-		log += RED + " [mygrep fail {}]".format(mygrep_status) + NC
-		print(log)
-		return -1
+		print(RED + " [mygrep fail {}]".format(mygrep_status) + NC)
+		exit()
 
-	grep_status = os.system(grep_command)
+	grep_status = os.system(grep_command) >> 8
 	if (grep_status == 2):
-		log += RED + " [grep fail {}]".format(grep_status) + NC
-		print(log)
-		return -1
+		print(RED + " [grep fail {}]".format(grep_status) + NC)
+		exit()
 
 	cmp_command = "cmp -s mygrep_output grep_output"
 	cmp_status = os.system(cmp_command)
 	if (cmp_status != 0):
-		log += RED + " [fail]" + NC
-		print(log)
-		return -1
+		print(RED + " [fail]" + NC)
+		exit()
 
 	os.system("rm mygrep_output")
 	os.system("rm grep_output")
-	log += GREEN + " [pass]" + NC
-	print(log)
+	print(GREEN + " [pass]" + NC)
 	test_idx += 1
 
 	return 0
@@ -65,29 +62,16 @@ def permutations_combinations(alist):
 	return result
 
 
-options_arr = ["-A 2", "-b", "-c", "-i", "-n", "-v", "-x"]
+options_arr = ["-A 3", "-b", "-c", "-i", "-n", "-v", "-x"]
 strs = ["dontfind", "chaim", "CHAIM", "\"is chaim\""]
+regex_strs = ["\"(my name is moshe|moshe)[h-m]\"", "\"\\\\text \"", "\"escaping \| chars\"", "\"(name is moshe|moshe)\"", "\"m[A-Z] name\"", "\"(CHAIM|moshe)\"", "\"m[a-z] na.e is (CHaim|moshe)\"", "\"m[a-z] na.e is \[]\"", "\"\[\]\"", "\"for\.\"", "\"\( some\)\""]
 opts = permutations_combinations(options_arr)
 
 test(file0, "chaim", [])
-test(file1, "chaim", [])
-test(file1, "\"is chaim\"", [])
-test(file1, "chaim", ["-c"])
-test(file1, "\"m. name\"", ["-E"])
-test(file1, "\"now\{ ad\}ding\"", ["-E"])
-test(file1, "\"\( some\)\"", ["-E"])
-test(file1, "\"\\\\text \"", ["-E"])
-test(file1, "\"for\.\"", ["-E"])
-test(file1, "\"\[\]\"", ["-E"])
-test(file1, "\"escaping \| chars\"", ["-E"])
-test(file1, "\"m[a-z] name\"", ["-E"])
-test(file1, "\"m[A-Z] name\"", ["-E"])
-test(file1, "\"m[A-Z] name\"", ["-E", "-i"])
-test(file1, "\"m[A-Z] name is (chaim|moshe)\"", ["-E", "-i"])
 
 
 for optper in opts:
 	for astr in strs:
 		result = test(file0, astr, optper)
-		if result < 0:
-			exit()
+	for rstr in regex_strs:
+		result = test(file0, rstr, optper + ('-E',))

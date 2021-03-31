@@ -2,11 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
-#include <ctype.h>
 #include <stdbool.h>
 
-enum e_args
+enum e_option
 {
     AFTER_CONTEXT,
     REGEX,
@@ -25,15 +23,20 @@ enum e_status
     STATUS_ERROR,
 };
 
-struct s_args
+struct grep_env
 {
-    FILE *fptr;
-    int num_context_lines;
-    char *pattern;
-    bool options[OPTION_MAX];
+	FILE *fptr;
+	char *pattern;
+	bool options[OPTION_MAX];
+	int context_line_cnt;
+	
+	bool is_match;
+	bool is_prev_match;
+	bool is_context;
+	bool is_prev_context;
+	bool priv_line_printed;
+
+	int line_num;
+	int byte_cnt;
+	int match_cnt;
 };
-
-
-#define BIT(pos)              (1 << (pos))
-#define SET_BIT(bitmap, pos)  ((bitmap) |= BIT(pos))
-#define TEST_BIT(bitmap, pos) !!((bitmap) & BIT(pos))
