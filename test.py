@@ -16,7 +16,7 @@ def test(path, pattern, options):
 	global test_idx
 
 	# build mygrep and grep commands
-	mygrep_command = "./mygrep"
+	mygrep_command = "./my_grep"
 	grep_command = "grep"
 	pattern_path = " {} {}".format(pattern, path)
 	options_str = ""
