@@ -7,4 +7,4 @@ if [ $? -ne 0 ]; then
 fi
 
 # run python script
-/usr/bin/python3 /home/cgruda/LABC/Ex2/test.py
+./test.py
