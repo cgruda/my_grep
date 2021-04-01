@@ -29,31 +29,19 @@ const char *opt_str[OPTION_MAX] =
 
 // init
 int grep_init(int argc, char **argv, struct grep_env *grep);
-void print_usage();
 FILE *get_input_stream(char *path);
 void parse_options(int argc, char **argv, struct grep_env *grep);
 
 // search
 bool is_char_end_of_pattern(char c);
-// bool is_char_regex(char c) ;
 bool is_char_in_range(char c, char *range, bool ignore_case);
 bool is_char_match(char c1, char c2, bool ignore_case);
 bool is_match_here(char *place, char *pattern, bool ignore_case, bool exact_match);
-// bool is_regex_match(char **place, char **pattern, bool ignore_case);
-bool is_match_in_text(char *text, char *pattern, bool *options);
+bool is_match_in_line(char *text, char *pattern, bool *options);
 int is_context_line(bool match, int context, int context_line_cnt);
-
 
 char *read_line(FILE *stream);
 void print_line(char *line, struct grep_env *grep, bool prev_line_printed, bool match);
-
-
-
-
-void print_usage()
-{
-	printf("Usage: ./mygrep [OPTIONS] PATTERN [FILE]\n");
-}
 
 void parse_options(int argc, char **argv, struct grep_env *grep)
 {
@@ -88,13 +76,13 @@ FILE *get_input_stream(char *path)
 int grep_init(int argc, char **argv, struct grep_env *grep)
 {
 	if (argc < MIN_ARGC) {
-		print_usage();
-		return EINPUT;
+		printf("Usage: ./mygrep [OPTIONS] PATTERN [FILE]\n");
+		return -1;
 	}
 
 	grep->fptr = get_input_stream(argv[argc - 1]);
 	if (!grep->fptr) {
-		return errno;
+		return -1;
 	}
 
 	int pattern_arg_idx = argc - 1 - (errno != ENOENT);
@@ -102,7 +90,7 @@ int grep_init(int argc, char **argv, struct grep_env *grep)
 	parse_options(argc, argv, grep);
 	grep->line_num = 1;
 
-	return ESUCCESS;
+	return 0;
 }
 
 void print_line(char *line, struct grep_env *grep, bool prev_line_printed, bool match)
@@ -138,53 +126,32 @@ bool is_char_in_range(char c, char *range, bool ignore_case)
 		((tolower(c) >= tolower(start)) && (tolower(c) <= tolower(end)) && ignore_case);
 }
 
-// bool is_char_regex(char c) 
-// {
-// 	return (c == '\\') || (c == '.') || (c == '[') || (c == '(');
-// }
-
 bool is_char_match(char c1, char c2, bool ignore_case)
 {
 	return (c1 == c2) || (ignore_case && (tolower(c1) == tolower(c2)));
 }
 
-// bool is_regex_match(char **place, char **pattern, bool ignore_case)
-// {
-// 	bool match_a = false, match_b = false;
-// 	bool match = false;
-
-// 	switch (*pattern[0]) {
-// 	case '.':
-// 		match = true;
-// 		break;
-// 	case '[':
-// 		match = is_char_in_range(*place[0], *pattern, ignore_case);
-// 		*pattern = strstr(*pattern, "]");
-// 		break;
-// 	case '(':
-// 		match_a = is_match_here(*place, *pattern + 1, ignore_case, true, false);
-// 		match_b = is_match_here(*place, strstr(*pattern, "|") + 1, ignore_case, true, false);
-// 		match = match_a || match_b;
-// 		*place += match_a ? (strstr(*pattern, "|") - *pattern - 2) : (strstr(*pattern, ")") - strstr(*pattern, "|") - 2);
-// 		*pattern = strstr(*pattern, ")");
-// 		break;
-// 	case '\\':
-// 		*pattern++;
-// 		// fall through
-// 	default:
-// 		match = is_char_match(*place, *pattern, ignore_case);
-// 	}
-
-// 	return match;
-// }
-
-bool is_match_here(char *place, char *pattern, bool ignore_case, bool exact_match)
+bool is_or_match_here(char **place, char *pattern, bool ignore_case)
 {
-	bool match = false, match_a = false, match_b = false;
-	bool end_of_pattern = is_char_end_of_pattern(pattern[0]);
-	bool end_of_line = !place[0];
+	bool match_a = false;
+	bool match_b = false;
 
-	if (end_of_line) {
+	char *delim = strstr(pattern, "|"); // FIXME: this isnt safe!!!
+	char *end = strstr(pattern, ")");
+
+	match_a = is_match_here(*place, pattern + 1, ignore_case, false);
+	match_b = is_match_here(*place, delim + 1, ignore_case, false);
+	*place += match_a ? (delim - pattern - 2) : (end - delim - 2);
+
+	return match_a || match_b;
+}
+
+bool is_match_here(char *text, char *pattern, bool ignore_case, bool exact_match)
+{
+	bool match = false;
+	bool end_of_pattern = is_char_end_of_pattern(pattern[0]);
+
+	if (!text[0]) {
 		return end_of_pattern;
 	} else if (end_of_pattern) {
 		return !exact_match;
@@ -195,30 +162,27 @@ bool is_match_here(char *place, char *pattern, bool ignore_case, bool exact_matc
 		match = true;
 		break;
 	case '[':
-		match = is_char_in_range(place[0], pattern, ignore_case);
+		match = is_char_in_range(text[0], pattern, ignore_case);
 		pattern = strstr(pattern, "]");
 		break;
 	case '(':
-		match_a = is_match_here(place, pattern + 1, ignore_case, false);
-		match_b = is_match_here(place, strstr(pattern, "|") + 1, ignore_case, false);
-		match = match_a || match_b;
-		place += match_a ? (strstr(pattern, "|") - pattern - 2) : (strstr(pattern, ")") - strstr(pattern, "|") - 2);
+		match = is_or_match_here(&text, pattern, ignore_case);
 		pattern = strstr(pattern, ")");
 		break;
-	case '\\':
+	case '\\': // FIXME: this isnt safe!!!
 		pattern++;
 	default:
-		match = is_char_match(place[0], pattern[0], ignore_case);
+		match = is_char_match(text[0], pattern[0], ignore_case);
 	}
 
 	if (match) {
-		return is_match_here(place + 1, pattern + 1, ignore_case, exact_match);
+		return is_match_here(text + 1, pattern + 1, ignore_case, exact_match);
 	} else {
 		return false;
 	}
 }
 
-bool is_match_in_text(char *text, char *pattern, bool *options)
+bool is_match_in_line(char *text, char *pattern, bool *options)
 {
 	bool match = false;
 
@@ -266,35 +230,29 @@ char *read_line(FILE *stream)
 int main(int argc, char **argv)
 {
 	struct grep_env grep = {0};
-	char *line = NULL;
 	int context = 0;
-	bool match = false, prev_line_printed = false;
-
-	int status = grep_init(argc, argv, &grep);
-	if (status != ESUCCESS) {
-		return status;
+	bool match = false;
+	if (grep_init(argc, argv, &grep) < 0) {
+		return EXIT_FAILURE;
 	}
 
-	do {
-		line = read_line(grep.fptr);
+	while (1) {
+		char *line = read_line(grep.fptr);
 		if (!line) {
 			break;
 		}
-
-		prev_line_printed = match || context;
-		match = is_match_in_text(line, grep.pattern, grep.options);
+		bool prev_line_printed = match || context;
+		match = is_match_in_line(line, grep.pattern, grep.options);
 		context = is_context_line(match, context, grep.context_line_cnt);
 		if ((match || context) && !grep.options[COUNT]) {
 			print_line(line, &grep, prev_line_printed, match);
 		}
-
 		grep.byte_cnt += strlen(line) + 1;
 		grep.match_cnt += match;
 		grep.line_num++;
 		free(line);
 		line = NULL;
-
-	} while (true);
+	}
 
 	if (grep.options[COUNT]) {
 		printf("%d\n", grep.match_cnt);

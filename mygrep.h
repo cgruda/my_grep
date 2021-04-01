@@ -17,12 +17,6 @@ enum e_option
     OPTION_MAX
 };
 
-enum e_status
-{
-    STATUS_OK,
-    STATUS_ERROR,
-};
-
 struct grep_env
 {
 	FILE *fptr;
