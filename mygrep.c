@@ -9,14 +9,7 @@
 #define DBG(...)        printf(__VA_ARGS__)
 #define MIN_ARGC 2
 
-enum error {
-	ESUCCESS,
-	EINPUT,
-	EMAX
-};
-
-const char *opt_str[OPTION_MAX] =
-{
+const char *opt_str[OPTION_MAX] = {
 	[AFTER_CONTEXT]  = "-A",
 	[REGEX]          = "-E",
 	[BYTE_OFFSET]    = "-b",
@@ -27,21 +20,52 @@ const char *opt_str[OPTION_MAX] =
 	[EXACT_MATCH]    = "-x",
 };
 
-// init
 int grep_init(int argc, char **argv, struct grep_env *grep);
 FILE *get_input_stream(char *path);
 void parse_options(int argc, char **argv, struct grep_env *grep);
-
-// search
 bool is_char_end_of_pattern(char c);
 bool is_char_in_range(char c, char *range, bool ignore_case);
 bool is_char_match(char c1, char c2, bool ignore_case);
 bool is_match_here(char *place, char *pattern, bool ignore_case, bool exact_match);
 bool is_match_in_line(char *text, char *pattern, bool *options);
 int is_context_line(bool match, int context, int context_line_cnt);
-
 char *read_line(FILE *stream);
 void print_line(char *line, struct grep_env *grep, bool prev_line_printed, bool match);
+
+int main(int argc, char **argv)
+{
+	struct grep_env grep = {0};
+	int context = 0;
+	bool match = false;
+	if (grep_init(argc, argv, &grep) < 0) {
+		return EXIT_FAILURE;
+	}
+
+	while (1) {
+		char *line = read_line(grep.fptr);
+		if (!line) {
+			break;
+		}
+		bool prev_line_printed = match || context;
+		match = is_match_in_line(line, grep.pattern, grep.options);
+		context = is_context_line(match, context, grep.context_line_cnt);
+		if ((match || context) && !grep.options[COUNT]) {
+			print_line(line, &grep, prev_line_printed, match);
+		}
+		grep.byte_cnt += strlen(line) + 1;
+		grep.match_cnt += match;
+		grep.line_num++;
+		free(line);
+		line = NULL;
+	}
+
+	if (grep.options[COUNT]) {
+		printf("%d\n", grep.match_cnt);
+	}
+
+	fclose(grep.fptr);
+	return errno;
+}
 
 void parse_options(int argc, char **argv, struct grep_env *grep)
 {
@@ -225,39 +249,4 @@ char *read_line(FILE *stream)
 	}
 
 	return line;
-}
-
-int main(int argc, char **argv)
-{
-	struct grep_env grep = {0};
-	int context = 0;
-	bool match = false;
-	if (grep_init(argc, argv, &grep) < 0) {
-		return EXIT_FAILURE;
-	}
-
-	while (1) {
-		char *line = read_line(grep.fptr);
-		if (!line) {
-			break;
-		}
-		bool prev_line_printed = match || context;
-		match = is_match_in_line(line, grep.pattern, grep.options);
-		context = is_context_line(match, context, grep.context_line_cnt);
-		if ((match || context) && !grep.options[COUNT]) {
-			print_line(line, &grep, prev_line_printed, match);
-		}
-		grep.byte_cnt += strlen(line) + 1;
-		grep.match_cnt += match;
-		grep.line_num++;
-		free(line);
-		line = NULL;
-	}
-
-	if (grep.options[COUNT]) {
-		printf("%d\n", grep.match_cnt);
-	}
-
-	fclose(grep.fptr);
-	return errno;
 }

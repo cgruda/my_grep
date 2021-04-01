@@ -1,3 +1,5 @@
+#ifndef _MY_GREP_H_
+#define _MY_GREP_H_
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,3 +36,5 @@ struct grep_env
 	int byte_cnt;
 	int match_cnt;
 };
+
+#endif // _MY_GREP_H_
