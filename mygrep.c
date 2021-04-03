@@ -7,8 +7,7 @@
 
 #define MIN_ARGC 2
 
-enum grep_options
-{
+enum grep_options {
     AFTER_CONTEXT,
     REGEX,
     BYTE_OFFSET,
@@ -24,7 +23,7 @@ struct grep_env {
 	FILE *fptr;
 	char *pattern;
 	bool options[OPTION_MAX];
-	int context_line_cnt;
+	int num_context_lines;
 	int line_num;
 	int byte_cnt;
 	int match_cnt;
@@ -63,7 +62,7 @@ int main(int argc, char **argv)
 		}
 		bool prev_line_printed = match || context;
 		match = is_match_in_line(line, grep.pattern, grep.options[IGNORE_CASE], grep.options[EXACT_MATCH], grep.options[INVERT_MATCH]);
-		context = is_context_line(match, context, grep.context_line_cnt);
+		context = is_context_line(match, grep.num_context_lines, context);
 		if ((match || context) && !grep.options[COUNT]) {
 			print_line(line, &grep, prev_line_printed, match);
 		}
@@ -98,7 +97,7 @@ void parse_options(int argc, char **argv, struct grep_env *grep)
 {
 	for (int i = 1; i < argc - 1; i++) {
 		if (!strcmp(argv[i], opt_str[AFTER_CONTEXT])) {
-			grep->context_line_cnt = atoi(argv[i + 1]);
+			grep->num_context_lines = atoi(argv[i + 1]);
 			i++;
 			continue;
 		}

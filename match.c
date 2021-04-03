@@ -9,31 +9,26 @@ bool is_char_end_of_pattern(char c)
 	return (c == '\0') || (c == ')') || (c == '|');
 }
 
-bool is_char_in_range(char c, char *range, bool ignore_case)
-{
-	char start, end;
-	sscanf(range, "[%c-%c]", &start, &end);
-	return ((c >= start) && (c <= end)) ||
-		((tolower(c) >= tolower(start)) && (tolower(c) <= tolower(end)) && ignore_case);
-}
-
 bool is_char_match(char c1, char c2, bool ignore_case)
 {
 	return (c1 == c2) || (ignore_case && (tolower(c1) == tolower(c2)));
 }
 
+bool is_char_in_range(char c, char *range, bool ignore_case)
+{
+	char start, end;
+	sscanf(range, "[%c-%c]", &start, &end); // FIXME: this could also be wrong if include '\'
+	return ((c >= start) && (c <= end)) ||
+		(ignore_case && ((tolower(c) >= tolower(start)) && (tolower(c) <= tolower(end))));
+}
+
 bool is_or_match_here(char **place, char *pattern, bool ignore_case)
 {
-	bool match_a = false;
-	bool match_b = false;
-
 	char *delim = strstr(pattern, "|"); // FIXME: this isnt safe!!!
 	char *end = strstr(pattern, ")");
-
-	match_a = is_match_here(*place, pattern + 1, ignore_case, false);
-	match_b = is_match_here(*place, delim + 1, ignore_case, false);
+	bool match_a = is_match_here(*place, pattern + 1, ignore_case, false);
+	bool match_b = is_match_here(*place, delim + 1, ignore_case, false);
 	*place += match_a ? (delim - pattern - 2) : (end - delim - 2);
-
 	return match_a || match_b;
 }
 
@@ -60,7 +55,7 @@ bool is_match_here(char *text, char *pattern, bool ignore_case, bool exact_match
 		match = is_or_match_here(&text, pattern, ignore_case);
 		pattern = strstr(pattern, ")");
 		break;
-	case '\\': // FIXME: this isnt safe!!!
+	case '\\':
 		pattern++;
 	default:
 		match = is_char_match(text[0], pattern[0], ignore_case);
@@ -88,10 +83,10 @@ bool is_match_in_line(char *text, char *pattern, bool ignore_case, bool exact_ma
 	return (invert_match ? !match : match);
 }
 
-int is_context_line(bool match, int context_lines_left, int context_line_cnt)
+int is_context_line(bool match, int num_context_lines, int context_lines_left)
 {
 	if (match) {
-		return context_line_cnt + 1;
+		return num_context_lines + 1;
 	}
 
 	if (context_lines_left > 0) {
