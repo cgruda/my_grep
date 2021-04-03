@@ -15,6 +15,9 @@ def test(path, pattern, options):
 
 	global test_idx
 
+	os.system("rm -f grep_output")
+	os.system("rm -f mygrep_output")
+
 	# build mygrep and grep commands
 	mygrep_command = "./my_grep"
 	grep_command = "grep"
